@@ -1,0 +1,18 @@
+#!/bin/bash
+os=$(uname)
+args="--no-window-system --no-init-file --load $HOME/.rustmacs/init.el"
+prefix=
+if [ "$#" -eq 1 ]; then
+    cd $1
+fi
+
+if [ "$#" -eq 2 ]; then
+    cd $1
+    prefix="env SHA=$2"
+fi
+
+if [ $os == "Darwin" ]; then
+  $prefix $HOME/Applications/Emacs-30.2.app/Contents/MacOS/Emacs $args
+else
+  $prefix emacs $args
+fi
