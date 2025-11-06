@@ -1,48 +1,108 @@
 ;;; init --- minimal settings for magit
 ;;; Commentary:
 ;;; Code:
-(setq user-init-file (or load-file-name (buffer-file-name)))
-(setq user-emacs-directory (file-name-directory user-init-file))
+(message "init.el")
+(add-to-list 'initial-frame-alist '(font . "Iosevka Term-19"))
+(add-to-list 'default-frame-alist '(font . "Iosevka Term-19"))
 
-(defvar bootstrap-version)
-(setq straight-disable-native-compile t)
-(let ((bootstrap-file
-       (expand-file-name "straight/repos/straight.el/bootstrap.el" user-emacs-directory))
-      (bootstrap-version 5))
-  (unless (file-exists-p bootstrap-file)
-    (with-current-buffer
-        (url-retrieve-synchronously
-         "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
-         'silent 'inhibit-cookies)
-      (goto-char (point-max))
-      (eval-print-last-sexp)))
-  (load bootstrap-file nil 'nomessage))
+;; elpaca
+(defvar elpaca-installer-version 0.11)
+(defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
+(defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
+(defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
+(defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
+                              :ref nil :depth 1 :inherit ignore
+                              :files (:defaults "elpaca-test.el" (:exclude "extensions"))
+                              :build (:not elpaca--activate-package)))
+(let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
+       (build (expand-file-name "elpaca/" elpaca-builds-directory))
+       (order (cdr elpaca-order))
+       (default-directory repo))
+  (add-to-list 'load-path (if (file-exists-p build) build repo))
+  (unless (file-exists-p repo)
+    (make-directory repo t)
+    (when (<= emacs-major-version 28) (require 'subr-x))
+    (condition-case-unless-debug err
+        (if-let* ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
+                  ((zerop (apply #'call-process `("git" nil ,buffer t "clone"
+                                                  ,@(when-let* ((depth (plist-get order :depth)))
+                                                      (list (format "--depth=%d" depth) "--no-single-branch"))
+                                                  ,(plist-get order :repo) ,repo))))
+                  ((zerop (call-process "git" nil buffer t "checkout"
+                                        (or (plist-get order :ref) "--"))))
+                  (emacs (concat invocation-directory invocation-name))
+                  ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
+                                        "--eval" "(byte-recompile-directory \".\" 0 'force)")))
+                  ((require 'elpaca))
+                  ((elpaca-generate-autoloads "elpaca" repo)))
+            (progn (message "%s" (buffer-string)) (kill-buffer buffer))
+          (error "%s" (with-current-buffer buffer (buffer-string))))
+      ((error) (warn "%s" err) (delete-directory repo 'recursive))))
+  (unless (require 'elpaca-autoloads nil t)
+    (require 'elpaca)
+    (elpaca-generate-autoloads "elpaca" repo)
+    (let ((load-source-file-function nil)) (load "./elpaca-autoloads"))))
+(add-hook 'after-init-hook #'elpaca-process-queues)
+(elpaca `(,@elpaca-order))
 
-(straight-use-package 'use-package)
-(use-package magit :straight t)
-(use-package zenburn-theme :straight t :config (load-theme 'zenburn t))
-;;(use-package exec-path-from-shell
-;;  :straight t
-;;  :config (exec-path-from-shell-initialize))
-(use-package rust-mode :straight t)
-
-;;(use-package eglot-x
-;;  :straight (eglot-x :type git :host github :repo "nemethf/eglot-x"))
-
-(with-eval-after-load 'eglot
-  (progn
-    (add-to-list 'eglot-server-programs
-		 '((rust-mode) . ("rust-analyzer" :initializationOptions (:check (:command "clippy")))))))
+(elpaca elpaca-use-package (elpaca-use-package-mode))
+(use-package magit :ensure t :demand t)
+(use-package zenburn-theme :ensure t :demand t :config (load-theme 'zenburn t))
+(use-package exec-path-from-shell :ensure t :demand t :config (exec-path-from-shell-initialize))
+(use-package transient :ensure t :demand t)
+(use-package rust-mode :ensure t :demand t)
 
 (menu-bar-mode -1)
-(load-theme 'zenburn t)
 (kill-buffer "*scratch*")
 (defalias 'yes-or-no-p 'y-or-n-p)
 (setq inhibit-startup-screen t)
 (setq initial-scratch-message "")
-
-
-
-
-(provide 'init)
-;;; init.el ends here
+(setq ns-command-modifier 'meta)
+(setq ns-alternate-modifier 'none)
+;;;;(use-package exec-path-from-shell
+;;;;  :straight t
+;;;;  :config (exec-path-from-shell-initialize))
+;;(use-package rust-mode :straight t)
+;;
+;;;;(use-package eglot-x
+;;;;  :straight (eglot-x :type git :host github :repo "nemethf/eglot-x"))
+;;
+;;(with-eval-after-load 'eglot
+;;  (progn
+;;    (add-to-list 'eglot-server-programs
+;;		 '((rust-mode) . ("rust-analyzer" :initializationOptions (:check (:command "clippy")))))))
+;;
+;;(menu-bar-mode -1)
+;;(load-theme 'zenburn t)
+;;(kill-buffer "*scratch*")
+;;(defalias 'yes-or-no-p 'y-or-n-p)
+;;
+;;
+;;
+;;(provide 'init)
+;;;;; init.el ends here
+;;(custom-set-variables
+;; ;; custom-set-variables was added by Custom.
+;; ;; If you edit it by hand, you could mess it up, so be careful.
+;; ;; Your init file should contain only one such instance.
+;; ;; If there is more than one, they won't work right.
+;; '(ns-alternate-modifier 'none))
+;;(custom-set-faces
+;; ;; custom-set-faces was added by Custom.
+;; ;; If you edit it by hand, you could mess it up, so be careful.
+;; ;; Your init file should contain only one such instance.
+;; ;; If there is more than one, they won't work right.
+;; )
+;;
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(warning-suppress-types '((emacs))))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
